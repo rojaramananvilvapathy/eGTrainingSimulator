@@ -8,7 +8,7 @@ WORKDIR /app/frontend
 # Copy frontend package files
 # ADJUST PATH if your frontend folder is named differently
 COPY frontend/package*.json ./
-RUN npm ci --only=production=false
+RUN npm ci
 
 COPY frontend/ ./
 RUN npm run build
