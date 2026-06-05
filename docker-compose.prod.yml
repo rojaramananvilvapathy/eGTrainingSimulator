@@ -10,7 +10,7 @@ services:
       - "4000:4000"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=4000
       # Add your env vars here or use .env file
       # - DB_URL=${DB_URL}
       # - JWT_SECRET=${JWT_SECRET}
