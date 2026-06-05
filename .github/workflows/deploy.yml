@@ -20,7 +20,7 @@ env:
   DROPLET_REGION: blr1
   DROPLET_SIZE: s-2vcpu-4gb-amd
   DROPLET_IMAGE: docker-20-04          # DigitalOcean Docker on Ubuntu 22.04 slug
-  APP_PORT: 3000
+  APP_PORT: 4000
   DOCKER_TAG: eGTrainingSimulator
 
 jobs:
