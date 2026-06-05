@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # ─── Backend (Node.js/Express) ───────────────────
   backend:
-    image: eGTrainingSimulator:${IMAGE_TAG:-latest}
+    image: egtrainingsimulator:${IMAGE_TAG:-latest}
     container_name: egtraining-backend
     restart: unless-stopped
     ports:
