@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # ─── Backend (Node.js/Express) ───────────────────
+  backend:
+    image: eGTrainingSimulator:${IMAGE_TAG:-latest}
+    container_name: egtraining-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Add your env vars here or use .env file
+      # - DB_URL=${DB_URL}
+      # - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - lab-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock  # If labs need Docker-in-Docker
+    networks:
+      - egtraining-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Nginx Reverse Proxy ─────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: egtraining-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - egtraining-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ─── Optional: Watchtower (auto-restart on crash) ─
+  watchtower:
+    image: containrrr/watchtower
+    container_name: egtraining-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup
+    networks:
+      - egtraining-net
+
+volumes:
+  lab-data:
+    driver: local
+
+networks:
+  egtraining-net:
+    driver: bridge
