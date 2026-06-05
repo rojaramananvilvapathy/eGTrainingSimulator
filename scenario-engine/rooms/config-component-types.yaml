@@ -1,0 +1,200 @@
+# ============================================================
+#  eG Enterprise — Component Type Configuration
+#  Phase 5 | Category: configuration | OS: both | Difficulty: medium
+# ============================================================
+id: config-component-types
+title: "Configure eG Monitor Component Types"
+description: |
+  eG Enterprise monitors different infrastructure components through
+  specialised monitor types. Each component type has unique configuration
+  requirements — credentials, WMI access, SNMP community strings, API tokens, etc.
+
+  This lab covers configuration of four key component types:
+    1. Windows Server (WMI-based)
+    2. Linux/Unix (SSH-based)
+    3. VMware vCenter (API-based)
+    4. Citrix Virtual Apps (ICA/WMI-based)
+
+  For each, you will navigate to the component configuration panel,
+  enter the required parameters, test connectivity, and capture the flag.
+os: both
+difficulty: medium
+category: configuration
+component_type: Multi-Component
+phase: 5
+estimated_minutes: 45
+docker_image: eg-sim-linux-lab:latest
+points_total: 160
+
+tasks:
+  - sequence: 1
+    title: "Add a Windows Server component (WMI monitoring)"
+    type: gui_wizard
+    points: 30
+    description: |
+      Add a Windows Server host for WMI-based monitoring.
+      Path: Infrastructure → Add Component → Windows → Windows Server
+
+      Required parameters:
+        • Host IP / Hostname: 192.168.1.10
+        • WMI Username: DOMAIN\\egmonitor  (domain account)
+        • WMI Password: [provided]
+        • Polling Interval: 5 minutes
+        • Component Nickname: WIN-APP-01
+
+      Test connectivity before saving — WMI must return data.
+    gui_action: eg_add_windows_component
+    flag_condition: gui_field_value
+    flag_field: Connectivity Test
+    flag_trigger: "Success|WMI OK|Connected|reachable"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Infrastructure → Add Component → Windows → Windows Server."
+      - tier: 2
+        cost: 20
+        text: "WMI requires a domain account with 'Remote WMI Access' permission. Use DOMAIN\\username format."
+      - tier: 3
+        cost: 30
+        text: "If WMI test fails: check Windows Firewall allows WMI (port 135 + dynamic RPC). Also verify the account is in the local Administrators or Performance Monitor Users group."
+    answer_explanation: |
+      WMI monitoring requires:
+        1. Network access to port 135 (RPC Endpoint Mapper) + dynamic high ports
+        2. Domain account with WMI namespace access (root\cimv2)
+        3. Either local admin or Performance Monitor Users group membership
+
+  - sequence: 2
+    title: "Add a Linux/Unix component (SSH monitoring)"
+    type: gui_wizard
+    points: 30
+    description: |
+      Add a Linux server for SSH-based monitoring.
+      Path: Infrastructure → Add Component → Unix/Linux → Linux
+
+      Required parameters:
+        • Host IP: 192.168.1.20
+        • SSH Port: 22
+        • SSH Username: egmonitor
+        • Auth Type: SSH Key (recommended) or Password
+        • Sudo Required: Yes (for some metrics)
+        • Polling Interval: 5 minutes
+    gui_action: eg_add_linux_component
+    flag_condition: gui_field_value
+    flag_field: SSH Test
+    flag_trigger: "Success|SSH OK|Connected|Authentication successful"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Infrastructure → Add Component → Unix/Linux → Linux."
+      - tier: 2
+        cost: 20
+        text: "SSH key authentication is more secure than password. Generate a key pair and add the public key to ~/.ssh/authorized_keys on the target host."
+      - tier: 3
+        cost: 30
+        text: "For sudo commands without password: add 'egmonitor ALL=(ALL) NOPASSWD: /bin/ps, /bin/df, /usr/bin/iostat' to /etc/sudoers.d/egmonitor"
+    answer_explanation: |
+      SSH monitoring is the standard for Linux/Unix. eG generates commands over SSH and parses output.
+      Best practice: dedicated egmonitor user + SSH key + limited sudo (not full root).
+
+  - sequence: 3
+    title: "Add VMware vCenter component (API monitoring)"
+    type: gui_wizard
+    points: 40
+    description: |
+      Add a VMware vCenter Server for API-based monitoring.
+      Path: Infrastructure → Add Component → Virtual → VMware vCenter
+
+      Required parameters:
+        • vCenter Host: vcenter.lab.internal (192.168.1.30)
+        • Port: 443 (HTTPS)
+        • Username: eGMonitor@vsphere.local
+        • Password: [provided]
+        • SSL Verify: Disabled (self-signed cert in lab)
+        • Polling Interval: 5 minutes
+
+      ⚠ The vCenter account must have Read-Only role at the vCenter level.
+    gui_action: eg_add_vmware_component
+    flag_condition: gui_field_value
+    flag_field: vCenter API Test
+    flag_trigger: "Success|API OK|Connected|vCenter version"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Infrastructure → Add Component → Virtual → VMware vCenter."
+      - tier: 2
+        cost: 20
+        text: "The monitoring account needs Read-Only role in vCenter — not just the datacenter, but at the root vCenter level."
+      - tier: 3
+        cost: 30
+        text: "If SSL error: disable SSL verification in component config (for self-signed certs). In production, import the vCenter cert into eG's trusted store."
+    answer_explanation: |
+      eG uses the VMware vSphere API (SOAP/REST) to pull VM, ESXi host, cluster, and datastore metrics.
+      Minimum permission: Read-Only role applied at vCenter root.
+      Common error: 'No permission' → role applied at datacenter level, not vCenter level.
+
+  - sequence: 4
+    title: "Add Citrix Virtual Apps & Desktops component"
+    type: gui_wizard
+    points: 40
+    description: |
+      Add a Citrix Virtual Apps and Desktops (CVAD) component.
+      Path: Infrastructure → Add Component → Desktop Virtualization → Citrix CVAD
+
+      Required parameters:
+        • Delivery Controller Host: 192.168.1.40
+        • Port: 80 (Citrix Broker SDK default)
+        • Domain: LAB.LOCAL
+        • Username: egmonitor (must be Citrix Read-Only Admin)
+        • Citrix SDK: PowerShell (requires Citrix Broker PowerShell snap-in)
+
+      eG connects via Citrix Broker PowerShell SDK to pull session, machine, and application data.
+    gui_action: eg_add_citrix_component
+    flag_condition: gui_field_value
+    flag_field: Citrix Broker Test
+    flag_trigger: "Success|Broker connected|Sessions retrieved|OK"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Infrastructure → Add Component → Desktop Virtualization → Citrix CVAD."
+      - tier: 2
+        cost: 20
+        text: "The monitoring account must be a Citrix Read-Only Administrator — not just a domain user."
+      - tier: 3
+        cost: 30
+        text: "If Broker connection fails: check TCP 80 or 443 is open from the eG Manager to the Delivery Controller. Also verify the Citrix Broker Service is running on the DDC."
+    answer_explanation: |
+      Citrix CVAD monitoring requires:
+        1. TCP access to Delivery Controller on port 80 (SDK) or 443 (HTTPS SDK)
+        2. Account with 'Read-Only Administrator' Citrix role
+        3. Citrix Broker PowerShell snap-in available on the eG Manager host (Windows only) OR eG's built-in SDK mode
+      eG monitors: Sessions, Applications, Machine Catalog state, Delivery Group health, ICA latency.
+
+  - sequence: 5
+    title: "Verify all components appear in the monitoring dashboard"
+    type: gui_wizard
+    points: 20
+    description: |
+      Navigate to the eG dashboard and verify all four components show green status:
+        ✅ WIN-APP-01 (Windows Server)
+        ✅ Linux-192.168.1.20
+        ✅ vCenter-LAB
+        ✅ Citrix-CVAD-LAB
+
+      All components should have data collected within the last polling cycle.
+    gui_action: eg_dashboard_verify
+    flag_condition: gui_field_value
+    flag_field: All Components Green
+    flag_trigger: "4|four|all green|all active"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Dashboard → Infrastructure Overview — shows all monitored components."
+      - tier: 2
+        cost: 10
+        text: "If a component shows amber/red, click it to see the error details."
+      - tier: 3
+        cost: 20
+        text: "Common reason for amber: polling interval not yet elapsed. Wait 5 minutes after adding a new component."
+    answer_explanation: |
+      All four components should be green within one polling cycle (5 minutes).
+      If any remain amber after 10 minutes, click the component → Alerts tab to see specific errors.

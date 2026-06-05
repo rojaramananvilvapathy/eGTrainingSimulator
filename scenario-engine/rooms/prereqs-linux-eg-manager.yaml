@@ -1,0 +1,230 @@
+# ============================================================
+#  eG Enterprise — Linux Prerequisites Check
+#  Phase 3 | Category: prerequisites | OS: linux | Difficulty: easy
+# ============================================================
+id: prereqs-linux-eg-manager
+title: "eG Manager — Linux Prerequisites Check"
+description: |
+  Before installing eG Enterprise Manager on Linux, you must verify that the
+  host meets all prerequisites. eG Enterprise is a Java/Tomcat-based application —
+  missing or incorrect versions of Java, Tomcat, or system resources will cause
+  the install to fail silently or crash on first run.
+
+  Complete each check task, capture the flag when the condition is met, and move
+  to the next step. All checks must pass before you proceed to the installation lab.
+os: linux
+difficulty: easy
+category: prerequisites
+component_type: eG Manager
+phase: 3
+estimated_minutes: 25
+docker_image: eg-sim-linux-lab:latest
+points_total: 80
+
+tasks:
+  - sequence: 1
+    title: "Verify OS distribution and version"
+    type: terminal
+    points: 10
+    description: |
+      eG Manager supports:
+        • RHEL / CentOS  7.x, 8.x
+        • Ubuntu 20.04 LTS, 22.04 LTS
+
+      Run the correct command to display the OS name and version.
+      Once you confirm the OS is supported, the flag will appear.
+    expected_commands:
+      - cat /etc/os-release
+      - lsb_release -a
+      - uname -a
+    flag_condition: output_contains
+    flag_trigger: "Ubuntu|CentOS|Red Hat|RHEL"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Look for a file in /etc that describes the OS release."
+      - tier: 2
+        cost: 20
+        text: "Try: cat /etc/os-release"
+      - tier: 3
+        cost: 30
+        text: "cat /etc/os-release — look for PRETTY_NAME and VERSION_ID fields."
+    answer_explanation: |
+      cat /etc/os-release is the standard way to identify the OS. On Ubuntu you
+      can also use lsb_release -a. eG Manager requires RHEL/CentOS 7-8 or Ubuntu 20.04/22.04.
+
+  - sequence: 2
+    title: "Check available RAM (minimum 8 GB)"
+    type: terminal
+    points: 10
+    description: |
+      eG Manager requires a minimum of 8 GB RAM.
+      Run a command to display the total and available memory.
+    expected_commands:
+      - free -h
+      - free -m
+      - cat /proc/meminfo
+    flag_condition: output_contains
+    flag_trigger: "Mem:|MemTotal"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "There is a command called 'free' that shows memory usage."
+      - tier: 2
+        cost: 20
+        text: "Try: free -h  (h = human-readable)"
+      - tier: 3
+        cost: 30
+        text: "free -h  — The 'total' column under Mem: shows installed RAM."
+    answer_explanation: |
+      free -h shows RAM in human-readable format. The total column must show at
+      least 8G. If less, eG Manager will run slowly or fail to start.
+
+  - sequence: 3
+    title: "Verify disk space (minimum 50 GB on /opt)"
+    type: terminal
+    points: 10
+    description: |
+      eG Manager installs to /opt by default and requires at least 50 GB free.
+      Check available disk space on the filesystem.
+    expected_commands:
+      - df -h
+      - df -h /opt
+    flag_condition: output_contains
+    flag_trigger: "/opt|/dev/sd|Filesystem"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "The 'df' command reports filesystem disk space usage."
+      - tier: 2
+        cost: 20
+        text: "Try: df -h /opt"
+      - tier: 3
+        cost: 30
+        text: "df -h /opt — check the 'Avail' column. It must be ≥ 50G."
+    answer_explanation: |
+      df -h /opt shows disk space on the partition that will hold the eG installation.
+      You need at least 50 GB free. If /opt is on the root partition, use df -h /.
+
+  - sequence: 4
+    title: "Check Java version (JDK 11 or JDK 17 required)"
+    type: terminal
+    points: 15
+    description: |
+      eG Enterprise is a Java/Tomcat application. The Manager requires:
+        • Java 11 (LTS)  OR  Java 17 (LTS)
+      OpenJDK or Oracle JDK are both accepted.
+
+      Verify the installed Java version. If Java is not installed, you will
+      see 'command not found' — this must be resolved before proceeding.
+    expected_commands:
+      - java -version
+      - java --version
+      - which java
+    flag_condition: output_contains
+    flag_trigger: "version \"11|version \"17|openjdk 11|openjdk 17"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Java provides a -version flag."
+      - tier: 2
+        cost: 20
+        text: "Try: java -version"
+      - tier: 3
+        cost: 30
+        text: "java -version  — you need to see '11' or '17' in the output. If missing: sudo apt install openjdk-11-jdk"
+    answer_explanation: |
+      java -version shows the installed JVM version. eG Manager requires Java 11 or 17.
+      If not installed on Ubuntu: sudo apt install openjdk-11-jdk
+      On RHEL/CentOS: sudo yum install java-11-openjdk-devel
+
+  - sequence: 5
+    title: "Verify required network ports are available"
+    type: terminal
+    points: 10
+    description: |
+      eG Manager uses the following default ports:
+        • 7076  — Manager HTTP (internal)
+        • 443   — HTTPS (external access)
+        • 7077  — eG Agent communication
+      Check if these ports are already in use.
+    expected_commands:
+      - ss -tlnp
+      - netstat -tlnp
+      - ss -tlnp | grep -E "7076|7077|443"
+    flag_condition: output_contains
+    flag_trigger: "LISTEN|tcp|State"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use 'ss' or 'netstat' to view listening TCP ports."
+      - tier: 2
+        cost: 20
+        text: "Try: ss -tlnp"
+      - tier: 3
+        cost: 30
+        text: "ss -tlnp | grep -E '7076|7077|443'  — if ports appear in LISTEN state, they are already occupied."
+    answer_explanation: |
+      ss -tlnp lists all listening TCP ports. If ports 7076, 7077, or 443 are in use,
+      you must either free them or reconfigure eG Manager to use alternate ports
+      before installation.
+
+  - sequence: 6
+    title: "Check system ulimits (open files ≥ 65535)"
+    type: terminal
+    points: 10
+    description: |
+      eG Manager handles many simultaneous connections. The OS file descriptor
+      limit (ulimit -n) must be at least 65535.
+      Check the current limit and determine whether it meets the requirement.
+    expected_commands:
+      - ulimit -n
+      - ulimit -a
+      - cat /proc/sys/fs/file-max
+    flag_condition: output_contains
+    flag_trigger: "65535|unlimited|open files"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use the 'ulimit' shell builtin with a flag for open files."
+      - tier: 2
+        cost: 20
+        text: "Try: ulimit -n  (-n = max open file descriptors)"
+      - tier: 3
+        cost: 30
+        text: "ulimit -n should return 65535 or higher. If lower, edit /etc/security/limits.conf."
+    answer_explanation: |
+      ulimit -n returns the max open file descriptors. eG Manager needs ≥ 65535.
+      To set it permanently, add to /etc/security/limits.conf:
+        * soft nofile 65535
+        * hard nofile 65535
+
+  - sequence: 7
+    title: "Confirm SELinux / AppArmor status"
+    type: terminal
+    points: 15
+    description: |
+      SELinux (RHEL/CentOS) or AppArmor (Ubuntu) can block eG Manager processes.
+      Check the current status. SELinux should be set to 'permissive' or
+      'disabled' for the initial installation.
+    expected_commands:
+      - getenforce
+      - sestatus
+      - aa-status
+    flag_condition: output_contains
+    flag_trigger: "Permissive|Disabled|disabled|apparmor"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "On RHEL: getenforce. On Ubuntu: aa-status"
+      - tier: 2
+        cost: 20
+        text: "Try: getenforce (RHEL) or aa-status (Ubuntu)"
+      - tier: 3
+        cost: 30
+        text: "If SELinux shows 'Enforcing', set to permissive: setenforce 0 (temporary) or edit /etc/selinux/config"
+    answer_explanation: |
+      getenforce returns Enforcing / Permissive / Disabled.
+      For installation, set to Permissive: setenforce 0
+      To make permanent: edit /etc/selinux/config → SELINUX=permissive
+      After installation, eG has SELinux policy modules that can be applied for hardened mode.

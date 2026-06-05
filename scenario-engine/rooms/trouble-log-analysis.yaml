@@ -1,0 +1,183 @@
+# ============================================================
+#  eG Enterprise — Log Analysis Challenge
+#  Phase 6 | Category: troubleshooting | OS: linux | Difficulty: hard
+# ============================================================
+id: trouble-log-analysis-challenge
+title: "Log Analysis: Diagnose eG Enterprise from Logs"
+description: |
+  A set of eG Enterprise log files from a production incident have been
+  placed at /var/log/egurkha/incident/. The monitoring team reported:
+    • eG Manager console became inaccessible at 03:47 AM
+    • Several agents lost connectivity around the same time
+    • DB alert emails stopped being sent from 03:45 AM
+
+  Your job: analyse the logs, identify the root cause, and submit
+  your findings as a flag. No hints about the cause — the logs tell the story.
+
+  This is a CTF-style flag challenge. Read → Analyse → Conclude → Submit.
+os: linux
+difficulty: hard
+category: troubleshooting
+component_type: eG Manager
+phase: 6
+estimated_minutes: 40
+docker_image: eg-sim-linux-lab:latest
+points_total: 150
+
+tasks:
+  - sequence: 1
+    title: "List and inspect available log files"
+    type: terminal
+    points: 15
+    description: |
+      Start by understanding what log files are available and their sizes.
+      Path: /var/log/egurkha/incident/
+      List all files and note their sizes and modification times.
+    expected_commands:
+      - ls -lh /var/log/egurkha/incident/
+      - find /var/log/egurkha/incident/ -type f -ls
+      - ls -la /var/log/egurkha/incident/
+    flag_condition: output_contains
+    flag_trigger: "egurkha.log|manager.log|agent.log|.log"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use ls -lh to list files with human-readable sizes."
+      - tier: 2
+        cost: 20
+        text: "ls -lh /var/log/egurkha/incident/ — note file sizes and timestamps."
+      - tier: 3
+        cost: 30
+        text: "Large log files suggest a logging loop (error logged repeatedly). A truncated file suggests rotation during the incident."
+    answer_explanation: |
+      Understanding the log inventory tells you which components were active during the incident.
+      File sizes reveal: normal (small), logging storm (huge), or silent failure (empty).
+
+  - sequence: 2
+    title: "Find the first error at 03:45–03:47 window"
+    type: terminal
+    points: 25
+    description: |
+      The incident started around 03:45 AM. Search the logs for the first ERROR
+      or FATAL entry in the 03:40–03:50 time window.
+    expected_commands:
+      - grep "03:4[0-9]" /var/log/egurkha/incident/egurkha.log | grep -E "ERROR|FATAL"
+      - awk '/03:4[0-9]/' /var/log/egurkha/incident/egurkha.log | grep "ERROR"
+      - sed -n '/03:40/,/03:50/p' /var/log/egurkha/incident/egurkha.log | grep -E "ERROR|FATAL"
+    flag_condition: output_contains
+    flag_trigger: "ERROR|FATAL|Exception|OutOfMemory|GC overhead|heap"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use grep with a time pattern to narrow the search window."
+      - tier: 2
+        cost: 20
+        text: "grep '03:4[0-9]' egurkha.log | grep -E 'ERROR|FATAL'"
+      - tier: 3
+        cost: 30
+        text: "sed -n '/03:40/,/03:50/p' egurkha.log filters lines between two time patterns. Pipe to grep for errors."
+    answer_explanation: |
+      Narrowing to the 03:40–03:50 window eliminates noise from earlier/later events.
+      The first ERROR in this window is the root cause. Errors after it are cascading effects.
+
+  - sequence: 3
+    title: "Identify the exception type and affected class"
+    type: terminal
+    points: 30
+    description: |
+      Once you find the first error, extract the full stack trace to identify:
+        1. The exception type (e.g. OutOfMemoryError, SocketException)
+        2. The Java class that threw it (com.eg.???)
+        3. What the component was attempting to do
+
+      Use grep with context flags (-A -B) to see full stack traces.
+    expected_commands:
+      - grep -A20 "03:47" /var/log/egurkha/incident/egurkha.log | grep -A20 "ERROR"
+      - grep -B2 -A15 "OutOfMemory\|FATAL\|Exception" /var/log/egurkha/incident/egurkha.log
+      - awk '/03:47.*ERROR/{found=1} found{print; if(++n==20) exit}' /var/log/egurkha/incident/egurkha.log
+    flag_condition: output_contains
+    flag_trigger: "java.lang|com.eg|Exception|at com|Caused by"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use grep -A 20 to show 20 lines after the match (stack trace)."
+      - tier: 2
+        cost: 20
+        text: "grep -A15 'ERROR' egurkha.log | grep -E 'Exception|at com\\.eg|Caused by'"
+      - tier: 3
+        cost: 30
+        text: "java.lang.OutOfMemoryError → JVM heap full. java.net.SocketException → network issue. java.sql.SQLException → DB issue."
+    answer_explanation: |
+      Stack traces show the exact call chain that led to the error:
+        • java.lang.OutOfMemoryError: Java heap space → insufficient JVM memory (-Xmx too low)
+        • Caused by: java.sql.SQLTimeoutException → DB query timed out, possibly causing thread accumulation
+        • at com.eg.manager.report.ReportScheduler → the report scheduler was the trigger
+
+  - sequence: 4
+    title: "Check GC logs for memory pressure before the crash"
+    type: terminal
+    points: 30
+    description: |
+      GC (Garbage Collection) logs reveal memory pressure leading up to the crash.
+      Check /var/log/egurkha/incident/gc.log for Full GC events near 03:45.
+    expected_commands:
+      - grep "Full GC" /var/log/egurkha/incident/gc.log
+      - grep -E "Full GC|GC pause|heap" /var/log/egurkha/incident/gc.log | tail -20
+      - awk '/Full GC/' /var/log/egurkha/incident/gc.log
+    flag_condition: output_contains
+    flag_trigger: "Full GC|Heap|GC pause|seconds|ms"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "GC logs show garbage collection events including Full GC (stop-the-world events)."
+      - tier: 2
+        cost: 20
+        text: "grep 'Full GC' /var/log/egurkha/incident/gc.log — frequent Full GC events indicate heap exhaustion."
+      - tier: 3
+        cost: 30
+        text: "If Full GC frequency increases dramatically in the minutes before the crash, the heap was running out of space progressively."
+    answer_explanation: |
+      GC logs reveal the memory story: normal Minor GC every few seconds is fine.
+      Multiple Full GC events in rapid succession (e.g. every 2-3 seconds) means the heap is nearly full.
+      OutOfMemoryError fires when GC can no longer free enough memory for the next allocation.
+
+  - sequence: 5
+    title: "Submit root cause diagnosis as flag"
+    type: flag_submit
+    points: 50
+    description: |
+      Based on your log analysis, submit the flag that matches the root cause.
+
+      Available diagnosis flags:
+        eGSIM{root_cause:oom_report_scheduler}      — OutOfMemoryError triggered by report scheduler
+        eGSIM{root_cause:db_connection_timeout}     — DB queries timing out
+        eGSIM{root_cause:network_partition}         — Network partition between Manager and agents
+        eGSIM{root_cause:disk_full_log_rotation}    — Disk full caused log rotation to fail
+        eGSIM{root_cause:ssl_handshake_failure}     — SSL handshake failures
+
+      Read the clues from tasks 2-4. The logs point to one clear answer.
+    flag_condition: output_contains
+    flag_trigger: "eGSIM{root_cause:"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Task 3 identified OutOfMemoryError. Task 4 confirmed heap exhaustion. What triggered it?"
+      - tier: 2
+        cost: 20
+        text: "The stack trace in Task 3 showed com.eg.manager.report.ReportScheduler as the class. The report scheduler ran a large report at 03:45."
+      - tier: 3
+        cost: 30
+        text: "Answer: eGSIM{root_cause:oom_report_scheduler} — the nightly report job consumed all available heap, triggering OOM and killing the JVM."
+    answer_explanation: |
+      ROOT CAUSE: OutOfMemoryError triggered by a large scheduled report job at 03:45 AM.
+
+      The report scheduler loaded the full historical dataset into memory without pagination.
+      This consumed all 4GB of heap space (-Xmx4g), triggering repeated Full GC, then OOM.
+      When the JVM died, all agent connections dropped (they connect to the JVM process).
+      Email stopped because the notification thread was in the same JVM.
+
+      FIX:
+        1. Increase JVM heap: edit /opt/egurkha/manager/bin/startup.sh → -Xmx8g
+        2. Implement report pagination (eG support ticket)
+        3. Move large reports to off-peak hours (e.g. Sunday 02:00 AM)
+        4. Add JVM heap monitoring: alert when heap > 80% before OOM occurs

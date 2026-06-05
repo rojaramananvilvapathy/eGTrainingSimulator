@@ -1,0 +1,171 @@
+name: CI — Build, Lint & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Backend ────────────────────────────────────────────────
+  backend:
+    name: Backend — Lint & Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB:       eg_sim_test
+          POSTGRES_USER:     eg_sim_user
+          POSTGRES_PASSWORD: test_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run migrations on test DB
+        env:
+          DB_HOST:     localhost
+          DB_PORT:     5432
+          DB_NAME:     eg_sim_test
+          DB_USER:     eg_sim_user
+          DB_PASSWORD: test_password
+        run: npm run migrate
+
+      - name: Run tests
+        env:
+          NODE_ENV:           test
+          DB_HOST:            localhost
+          DB_PORT:            5432
+          DB_NAME:            eg_sim_test
+          DB_USER:            eg_sim_user
+          DB_PASSWORD:        test_password
+          JWT_SECRET:         test_jwt_secret_32_chars_minimum
+          JWT_REFRESH_SECRET: test_refresh_secret_32_chars_min
+          FLAG_SECRET:        test_flag_secret_32_chars_minimum
+        run: npm test -- --coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          directory: backend/coverage
+
+  # ── Frontend ───────────────────────────────────────────────
+  frontend:
+    name: Frontend — Lint & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          VITE_API_URL: http://localhost:4000/api
+        run: npm run build
+
+  # ── YAML Room Validation ───────────────────────────────────
+  validate-rooms:
+    name: Validate scenario YAML rooms
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install js-yaml
+        run: npm install -g js-yaml
+
+      - name: Validate all room YAML files
+        run: |
+          for f in scenario-engine/rooms/*.yaml; do
+            echo "Validating: $f"
+            node -e "const yaml = require('js-yaml'); const fs = require('fs'); yaml.load(fs.readFileSync('$f', 'utf8')); console.log('  ✓ OK')"
+          done
+
+  # ── Docker Build Check ─────────────────────────────────────
+  docker-build:
+    name: Docker — Build images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context:    ./backend
+          file:       ./infra/Dockerfile.backend
+          push:       false
+          tags:       eg-sim-backend:ci
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context:    ./frontend
+          file:       ./infra/Dockerfile.frontend
+          push:       false
+          tags:       eg-sim-frontend:ci
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+      - name: Build Linux lab image
+        uses: docker/build-push-action@v5
+        with:
+          context:    ./infra/lab-images
+          file:       ./infra/lab-images/Dockerfile.linux-lab
+          push:       false
+          tags:       eg-sim-linux-lab:ci
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max

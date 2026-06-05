@@ -1,0 +1,249 @@
+# ============================================================
+#  eG Enterprise — Manager Installation on Linux
+#  Phase 4 | Category: installation | OS: linux | Difficulty: medium
+# ============================================================
+id: install-eg-manager-linux
+title: "Install eG Enterprise Manager on Linux"
+description: |
+  You have already verified all prerequisites. Now it's time to install
+  eG Enterprise Manager on the Linux host.
+
+  This lab simulates the full installation sequence — downloading the
+  installer, running the setup script, configuring the backend database
+  (MS SQL Server), and verifying the Manager service starts correctly.
+
+  Each successful step unlocks the next task and awards XP.
+  Intentional errors have been injected — diagnose and fix them.
+os: linux
+difficulty: medium
+category: installation
+component_type: eG Manager
+phase: 4
+estimated_minutes: 45
+docker_image: eg-sim-linux-lab:latest
+points_total: 150
+
+tasks:
+  - sequence: 1
+    title: "Create the installation directory"
+    type: terminal
+    points: 10
+    description: |
+      eG Manager installs to /opt/egurkha by default.
+      Create the directory and set correct ownership.
+    expected_commands:
+      - mkdir -p /opt/egurkha
+      - sudo mkdir -p /opt/egurkha
+    flag_condition: output_contains
+    flag_trigger: "egurkha|mkdir"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use mkdir with the -p flag to create parent directories."
+      - tier: 2
+        cost: 20
+        text: "sudo mkdir -p /opt/egurkha"
+      - tier: 3
+        cost: 30
+        text: "sudo mkdir -p /opt/egurkha && sudo chown -R $(whoami):$(whoami) /opt/egurkha"
+    answer_explanation: |
+      mkdir -p /opt/egurkha creates the installation directory.
+      The -p flag creates parent directories as needed and doesn't error if it already exists.
+
+  - sequence: 2
+    title: "Download the eG Manager installer"
+    type: terminal
+    points: 10
+    description: |
+      Download the eG Manager Linux installer using wget or curl.
+      The installer is available at the simulated eG download server.
+
+      URL: http://sim-downloads.eg-lab.internal/eGurkha_Manager_7.2_linux.bin
+    expected_commands:
+      - wget http://sim-downloads.eg-lab.internal/eGurkha_Manager_7.2_linux.bin
+      - curl -O http://sim-downloads.eg-lab.internal/eGurkha_Manager_7.2_linux.bin
+    flag_condition: output_contains
+    flag_trigger: "saved|100%|eGurkha_Manager"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use wget or curl to download files from a URL."
+      - tier: 2
+        cost: 20
+        text: "wget <URL> saves the file in the current directory."
+      - tier: 3
+        cost: 30
+        text: "wget http://sim-downloads.eg-lab.internal/eGurkha_Manager_7.2_linux.bin"
+    answer_explanation: |
+      wget downloads files via HTTP/FTP. The -P flag specifies a destination directory.
+      curl -O preserves the remote filename. Both are valid for eG installer download.
+
+  - sequence: 3
+    title: "Make the installer executable"
+    type: terminal
+    points: 10
+    description: |
+      The downloaded .bin file must be made executable before it can be run.
+    expected_commands:
+      - chmod +x eGurkha_Manager_7.2_linux.bin
+      - chmod 755 eGurkha_Manager_7.2_linux.bin
+    flag_condition: output_contains
+    flag_trigger: "chmod|permission"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "The chmod command changes file permissions."
+      - tier: 2
+        cost: 20
+        text: "chmod +x adds execute permission."
+      - tier: 3
+        cost: 30
+        text: "chmod +x eGurkha_Manager_7.2_linux.bin then verify with: ls -l"
+    answer_explanation: |
+      chmod +x adds execute permission to the file.
+      Without this, running ./eGurkha_Manager_7.2_linux.bin gives: Permission denied.
+
+  - sequence: 4
+    title: "Run the installer in console mode"
+    type: terminal
+    points: 20
+    description: |
+      Run the eG Manager installer. On Linux, use console mode (-i console).
+      When prompted for database type, select Microsoft SQL Server.
+      Enter the DB host, port (1433), database name, username, and password.
+
+      ⚠ Error injected: The installer will fail on the first attempt.
+      Read the error message carefully and fix the issue before retrying.
+    expected_commands:
+      - ./eGurkha_Manager_7.2_linux.bin -i console
+      - sudo ./eGurkha_Manager_7.2_linux.bin -i console
+    flag_condition: output_contains
+    flag_trigger: "Installation complete|Manager started|eGurkha installed"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Run the .bin file with the -i console flag for text-based install."
+      - tier: 2
+        cost: 20
+        text: "The first run will fail with a Java JAVA_HOME error. Set JAVA_HOME first."
+      - tier: 3
+        cost: 30
+        text: "export JAVA_HOME=$(readlink -f /usr/bin/java | sed 's:/bin/java::') then retry the installer."
+    answer_explanation: |
+      The injected error is a missing JAVA_HOME. Fix:
+        export JAVA_HOME=$(readlink -f /usr/bin/java | sed 's:/bin/java::')
+        export PATH=$JAVA_HOME/bin:$PATH
+      Then rerun: sudo ./eGurkha_Manager_7.2_linux.bin -i console
+
+  - sequence: 5
+    title: "Verify the eG Manager service is running"
+    type: terminal
+    points: 20
+    description: |
+      After installation, eG Manager runs as a system service.
+      Verify that the service is active and listening on port 7076.
+    expected_commands:
+      - systemctl status egurkha
+      - service egurkha status
+      - ss -tlnp | grep 7076
+    flag_condition: output_contains
+    flag_trigger: "active (running)|LISTEN.*7076|egurkha.*running"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use systemctl to check service status."
+      - tier: 2
+        cost: 20
+        text: "systemctl status egurkha"
+      - tier: 3
+        cost: 30
+        text: "systemctl status egurkha — look for 'Active: active (running)'. Also: ss -tlnp | grep 7076"
+    answer_explanation: |
+      systemctl status egurkha shows the service state.
+      'Active: active (running)' confirms the Manager started successfully.
+      If it shows 'failed', check logs: journalctl -u egurkha -n 50
+
+  - sequence: 6
+    title: "Check eG Manager logs for startup errors"
+    type: terminal
+    points: 20
+    description: |
+      eG Manager logs are in /opt/egurkha/manager/logs/.
+      Inspect the startup log to confirm no errors occurred during initialisation.
+    expected_commands:
+      - cat /opt/egurkha/manager/logs/egurkha.log
+      - tail -f /opt/egurkha/manager/logs/egurkha.log
+      - grep -i error /opt/egurkha/manager/logs/egurkha.log
+    flag_condition: output_contains
+    flag_trigger: "Manager started|Listening on|startup complete|INFO"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Logs are in /opt/egurkha/manager/logs/"
+      - tier: 2
+        cost: 20
+        text: "tail -f /opt/egurkha/manager/logs/egurkha.log"
+      - tier: 3
+        cost: 30
+        text: "grep -i 'started\\|listening\\|error' /opt/egurkha/manager/logs/egurkha.log"
+    answer_explanation: |
+      eG Manager logs startup, DB connection, and port binding messages.
+      Key lines to look for:
+        INFO: Manager started on port 7076
+        INFO: Database connection established
+      ERROR lines indicate configuration issues that must be resolved.
+
+  - sequence: 7
+    title: "Access the eG Manager web console"
+    type: terminal
+    points: 20
+    description: |
+      eG Manager runs a web console on port 7076. Test connectivity using curl.
+      The console should return an HTTP 200 or 302 response.
+    expected_commands:
+      - curl -I http://localhost:7076/eg
+      - curl http://localhost:7076/eg
+      - wget -q --spider http://localhost:7076/eg
+    flag_condition: output_contains
+    flag_trigger: "200 OK|302 Found|HTTP/1.1"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "curl -I sends an HTTP HEAD request and shows response headers."
+      - tier: 2
+        cost: 20
+        text: "curl -I http://localhost:7076/eg"
+      - tier: 3
+        cost: 30
+        text: "curl -I http://localhost:7076/eg — a 200 or 302 confirms the console is running."
+    answer_explanation: |
+      curl -I http://localhost:7076/eg returns HTTP headers.
+      HTTP 200 OK = console running and accessible.
+      HTTP 302 Found = redirect to login page (also correct).
+      Connection refused = Manager not started or wrong port.
+
+  - sequence: 8
+    title: "Configure Manager startup on boot"
+    type: terminal
+    points: 20
+    description: |
+      Ensure eG Manager starts automatically when the server reboots.
+      Enable the service using systemctl.
+    expected_commands:
+      - systemctl enable egurkha
+      - sudo systemctl enable egurkha
+    flag_condition: output_contains
+    flag_trigger: "Created symlink|enabled|egurkha.service"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "systemctl has an 'enable' subcommand for auto-start."
+      - tier: 2
+        cost: 20
+        text: "sudo systemctl enable egurkha"
+      - tier: 3
+        cost: 30
+        text: "sudo systemctl enable egurkha — this creates a symlink in /etc/systemd/system/"
+    answer_explanation: |
+      systemctl enable egurkha creates a symlink so the service starts at boot.
+      Verify with: systemctl is-enabled egurkha → should return 'enabled'.

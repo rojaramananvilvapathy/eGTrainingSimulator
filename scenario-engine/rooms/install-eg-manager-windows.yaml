@@ -1,0 +1,243 @@
+# ============================================================
+#  eG Enterprise — Manager Installation on Windows
+#  Phase 4 | Category: installation | OS: windows | Difficulty: medium
+# ============================================================
+id: install-eg-manager-windows
+title: "Install eG Enterprise Manager on Windows"
+description: |
+  Install eG Enterprise Manager on Windows Server 2019 using the GUI wizard.
+  eG Manager on Windows uses a graphical setup wizard — there is no
+  command-line silent install for the Manager component.
+
+  You will walk through each wizard screen, configure the MS SQL Server
+  backend database, set ports, and verify the installation completes.
+
+  ⚠ Error injection: One wizard screen contains a deliberate misconfiguration.
+  Identify it, correct it, and proceed.
+os: windows
+difficulty: medium
+category: installation
+component_type: eG Manager
+phase: 4
+estimated_minutes: 40
+docker_image: eg-sim-windows-sim:latest
+points_total: 130
+
+tasks:
+  - sequence: 1
+    title: "Launch the eG Manager installer"
+    type: gui_wizard
+    points: 10
+    description: |
+      Locate and run the eG Manager installer (eGurkha_Manager_7.2_setup.exe).
+      The installer is on the Desktop. Double-click it to launch the Setup Wizard.
+    gui_action: open_eg_installer_welcome
+    flag_condition: gui_action_complete
+    flag_trigger: "wizard_opened"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Double-click the installer file on the Desktop."
+      - tier: 2
+        cost: 20
+        text: "Right-click the .exe → Run as Administrator if a UAC prompt appears."
+      - tier: 3
+        cost: 30
+        text: "Right-click eGurkha_Manager_7.2_setup.exe → Run as Administrator → Yes on UAC."
+    answer_explanation: |
+      eG Manager installer requires Administrator privileges.
+      If UAC is enabled, right-click and select 'Run as Administrator'.
+
+  - sequence: 2
+    title: "Accept the License Agreement"
+    type: gui_wizard
+    points: 10
+    description: |
+      Read the eG Innovations End User License Agreement.
+      Click 'I Agree' to proceed.
+    gui_action: eg_installer_license
+    flag_condition: gui_action_complete
+    flag_trigger: "license_accepted"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Click 'I Agree' to accept the license."
+      - tier: 2
+        cost: 10
+        text: "Scroll to the bottom if the 'I Agree' button is greyed out."
+      - tier: 3
+        cost: 20
+        text: "Select 'I accept the terms of the license agreement' then click Next."
+    answer_explanation: |
+      The EULA must be accepted to continue. Without accepting, the installer exits.
+
+  - sequence: 3
+    title: "Select installation components"
+    type: gui_wizard
+    points: 10
+    description: |
+      Choose which eG components to install. For this lab, install:
+        ✅ eG Manager (required — cannot be deselected)
+        ✅ eG Integrated Console (web UI)
+        ☐ eG Agent (do NOT install on the Manager host in production)
+    gui_action: eg_installer_install_type
+    flag_condition: gui_action_complete
+    flag_trigger: "components_selected"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Leave eG Agent unchecked on a dedicated Manager host."
+      - tier: 2
+        cost: 10
+        text: "Best practice: keep Manager and Agent on separate hosts."
+      - tier: 3
+        cost: 20
+        text: "Check: eG Manager + eG Integrated Console. Uncheck: eG Agent."
+    answer_explanation: |
+      Installing eG Agent on the Manager host causes resource contention.
+      In production, always keep them on separate servers.
+
+  - sequence: 4
+    title: "Set installation directory"
+    type: gui_wizard
+    points: 10
+    description: |
+      Accept the default install path (C:\\eGurkha) or change it.
+      Ensure the path has at least 50 GB of free space.
+      Do NOT install to C:\\Program Files — spaces in the path cause issues.
+    gui_action: eg_installer_install_dir
+    flag_condition: gui_action_complete
+    flag_trigger: "dir_set"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Accept the default path: C:\\eGurkha"
+      - tier: 2
+        cost: 10
+        text: "Avoid paths with spaces. C:\\eGurkha is the recommended default."
+      - tier: 3
+        cost: 20
+        text: "Use C:\\eGurkha — avoid Program Files because spaces in paths break eG's Tomcat startup."
+    answer_explanation: |
+      The default path C:\\eGurkha is correct. Spaces in paths (e.g. C:\\Program Files\\eG)
+      cause Tomcat startup failures because the start script doesn't quote the path.
+
+  - sequence: 5
+    title: "Configure the database connection"
+    type: gui_wizard
+    points: 30
+    description: |
+      Configure the eG Enterprise backend database.
+
+      ⚠ INJECTED ERROR: The default DB type shown is MySQL. This is WRONG.
+      eG Enterprise Manager only supports MS SQL Server and Oracle.
+
+      Correct settings:
+        • Database Type: MS SQL Server
+        • DB Host: 192.168.1.50
+        • Port: 1433
+        • Database Name: egdb
+        • Username: egdbuser
+        • Password: [enter the DB password]
+    gui_action: eg_installer_db_config
+    flag_condition: gui_action_complete
+    flag_trigger: "db_configured"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Change the DB type from MySQL to MS SQL Server."
+      - tier: 2
+        cost: 20
+        text: "eG only supports MS SQL Server and Oracle — change DB type first."
+      - tier: 3
+        cost: 30
+        text: "DB Type = MS SQL Server, Host = 192.168.1.50, Port = 1433, DB = egdb, User = egdbuser."
+    answer_explanation: |
+      eG Enterprise Manager backend database requirements:
+        - MS SQL Server: Standard or Enterprise edition, port 1433
+        - Oracle DB: 12c or higher
+      MySQL, PostgreSQL, MariaDB are NOT supported for the eG Manager backend.
+      (They can be monitored BY eG as target databases.)
+
+  - sequence: 6
+    title: "Set Manager ports"
+    type: gui_wizard
+    points: 20
+    description: |
+      Configure the ports eG Manager will listen on:
+        • HTTP Port: 7076 (internal access, pre-SSL)
+        • Agent Comm Port: 7077 (eG Agent → Manager communication)
+      Leave HTTPS disabled for now — SSL is configured post-install.
+    gui_action: eg_installer_manager_config
+    flag_condition: gui_action_complete
+    flag_trigger: "ports_configured"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Accept the defaults: 7076 and 7077."
+      - tier: 2
+        cost: 10
+        text: "Do not enable HTTPS during installation — configure SSL after."
+      - tier: 3
+        cost: 20
+        text: "HTTP Port: 7076, Agent Port: 7077, HTTPS: disabled for now."
+    answer_explanation: |
+      Ports 7076 (Manager HTTP) and 7077 (Agent comm) are the eG defaults.
+      SSL/HTTPS setup is a separate post-installation task to avoid complicating initial setup.
+
+  - sequence: 7
+    title: "Monitor installation progress"
+    type: gui_wizard
+    points: 20
+    description: |
+      The installer is copying files, configuring Tomcat, creating the DB schema,
+      and starting the eG Manager service. Monitor the progress bar.
+
+      This step will complete automatically — watch for any error dialogs.
+    gui_action: eg_installer_progress
+    flag_condition: gui_action_complete
+    flag_trigger: "install_progress_done"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Wait for all progress steps to complete."
+      - tier: 2
+        cost: 10
+        text: "If an error dialog appears, note the error message carefully."
+      - tier: 3
+        cost: 20
+        text: "Common error: DB connection refused — verify SQL Server is running and port 1433 is open."
+    answer_explanation: |
+      The installer creates:
+        1. File structure at C:\\eGurkha
+        2. Tomcat configuration
+        3. eG Manager Windows Service
+        4. Database tables in MSSQL
+        5. Default admin account
+
+  - sequence: 8
+    title: "Verify installation and capture completion flag"
+    type: gui_wizard
+    points: 20
+    description: |
+      The wizard shows 'Installation Complete'.
+      Open a browser and navigate to http://localhost:7076/eg to verify the console loads.
+      The default login is admin / admin.
+    gui_action: eg_installer_complete
+    flag_condition: gui_field_value
+    flag_field: installation_status
+    flag_trigger: "installation_complete"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Click Finish on the wizard, then open a browser."
+      - tier: 2
+        cost: 10
+        text: "Navigate to http://localhost:7076/eg in Internet Explorer or Edge."
+      - tier: 3
+        cost: 20
+        text: "If the console doesn't load, check Services: look for 'eGurkha Manager Service' — it must be Running."
+    answer_explanation: |
+      Successful installation shows the eG login page at http://localhost:7076/eg.
+      First login: admin / admin → you will be forced to change the password.
+      If the page doesn't load: Start → Services → find 'eGurkha Manager Service' → Start it.

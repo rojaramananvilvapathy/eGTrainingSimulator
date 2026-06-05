@@ -1,0 +1,100 @@
+version: '3.9'
+
+networks:
+  eg-sim-internal:
+    driver: bridge
+  eg-sim-lab-net:
+    driver: bridge
+    internal: true       # Lab containers have no internet access
+
+volumes:
+  pg_data:
+  logs:
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: eg-sim-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       eg_sim_platform
+      POSTGRES_USER:     eg_sim_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_strong_password}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - eg-sim-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eg_sim_user -d eg_sim_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend API ───────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../infra/Dockerfile.backend
+    container_name: eg-sim-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV:        ${NODE_ENV:-development}
+      PORT:            4000
+      DB_HOST:         postgres
+      DB_PORT:         5432
+      DB_NAME:         eg_sim_platform
+      DB_USER:         eg_sim_user
+      DB_PASSWORD:     ${DB_PASSWORD:-changeme_strong_password}
+      JWT_SECRET:      ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      FLAG_SECRET:     ${FLAG_SECRET}
+      FRONTEND_URL:    ${FRONTEND_URL:-http://localhost:5173}
+      DOCKER_SOCKET:   /var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - logs:/app/logs
+      - ./scenario-engine/rooms:/app/rooms:ro
+    ports:
+      - "4000:4000"
+    networks:
+      - eg-sim-internal
+      - eg-sim-lab-net
+
+  # ── Frontend ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../infra/Dockerfile.frontend
+    container_name: eg-sim-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+    networks:
+      - eg-sim-internal
+
+  # ── Nginx reverse proxy (production) ─────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: eg-sim-nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - eg-sim-internal
+    profiles:
+      - production

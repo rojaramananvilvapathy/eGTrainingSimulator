@@ -1,0 +1,209 @@
+# ============================================================
+#  eG Enterprise — Windows Prerequisites Check
+#  Phase 3 | Category: prerequisites | OS: windows | Difficulty: easy
+# ============================================================
+id: prereqs-windows-eg-manager
+title: "eG Manager — Windows Prerequisites Check"
+description: |
+  eG Manager on Windows is installed via a GUI wizard. Before running the installer,
+  every prerequisite must be verified manually. eG Enterprise is a Java/Tomcat
+  application — Java version, .NET, RAM, disk, and port availability must all
+  pass before the installer will succeed.
+
+  This lab simulates a Windows Server 2019/2022 environment. Complete each
+  verification step and capture the flag when the requirement is confirmed.
+os: windows
+difficulty: easy
+category: prerequisites
+component_type: eG Manager
+phase: 3
+estimated_minutes: 25
+docker_image: eg-sim-windows-sim:latest
+points_total: 80
+
+tasks:
+  - sequence: 1
+    title: "Check OS edition — Windows Server 2019 or 2022"
+    type: gui_wizard
+    points: 10
+    description: |
+      eG Manager requires Windows Server 2016, 2019, or 2022 (Standard or Datacenter).
+      Open System Information (msinfo32) and verify the OS Name and Version.
+    gui_action: open_msinfo32
+    flag_condition: gui_field_value
+    flag_field: OS Name
+    flag_trigger: "Windows Server 2019|Windows Server 2022|Windows Server 2016"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Press Win + R and type msinfo32 to open System Information."
+      - tier: 2
+        cost: 20
+        text: "Run → msinfo32. Look at 'OS Name' in the System Summary."
+      - tier: 3
+        cost: 30
+        text: "Run → msinfo32 → System Summary → OS Name. Must show Windows Server 2019 or 2022."
+    answer_explanation: |
+      msinfo32 (System Information) shows OS Name, Version, and hardware details.
+      eG Manager requires Windows Server 2016/2019/2022 Standard or Datacenter edition.
+
+  - sequence: 2
+    title: "Verify installed RAM (minimum 8 GB)"
+    type: gui_wizard
+    points: 10
+    description: |
+      eG Manager requires a minimum of 8 GB RAM. Use System Information or
+      Task Manager to check the total installed physical memory.
+    gui_action: open_taskmgr_performance
+    flag_condition: gui_field_value
+    flag_field: Installed RAM
+    flag_trigger: "8 GB|16 GB|32 GB|64 GB"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Open Task Manager (Ctrl+Shift+Esc) → Performance → Memory."
+      - tier: 2
+        cost: 20
+        text: "Task Manager → Performance → Memory tab shows installed RAM."
+      - tier: 3
+        cost: 30
+        text: "Ctrl+Shift+Esc → Performance → Memory. 'Installed memory' must be ≥ 8.0 GB."
+    answer_explanation: |
+      Task Manager > Performance > Memory shows total installed RAM.
+      Alternatively: msinfo32 > System Summary > Installed Physical Memory (RAM).
+      8 GB is the minimum; 16 GB recommended for production eG Manager.
+
+  - sequence: 3
+    title: "Check free disk space on C:\\ (minimum 50 GB)"
+    type: gui_wizard
+    points: 10
+    description: |
+      The eG Manager installation requires at least 50 GB of free space on the
+      installation drive (default: C:\\). Open Windows Explorer and check C:\\ properties.
+    gui_action: open_disk_properties
+    flag_condition: gui_field_value
+    flag_field: Free Space
+    flag_trigger: "GB free"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Right-click C:\\ in Windows Explorer and select Properties."
+      - tier: 2
+        cost: 20
+        text: "Windows Explorer → This PC → right-click Local Disk (C:) → Properties."
+      - tier: 3
+        cost: 30
+        text: "C:\\ Properties shows 'Free space'. Must be ≥ 50 GB. Also visible via: Get-PSDrive C in PowerShell."
+    answer_explanation: |
+      C:\\ Properties shows used and free space. You need ≥ 50 GB free.
+      PowerShell alternative: Get-PSDrive C | Select-Object Used, Free
+
+  - sequence: 4
+    title: "Verify Java version (JDK 11 or JDK 17)"
+    type: gui_wizard
+    points: 15
+    description: |
+      eG Enterprise requires Java JDK 11 or JDK 17 (LTS). Open Command Prompt
+      and run the Java version check command.
+    gui_action: open_cmd
+    expected_commands:
+      - java -version
+    flag_condition: output_contains
+    flag_trigger: "version \"11|version \"17"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Open Command Prompt (cmd) and check the Java version."
+      - tier: 2
+        cost: 20
+        text: "Start → type cmd → java -version"
+      - tier: 3
+        cost: 30
+        text: "cmd → java -version. Must show '11' or '17'. If missing, install from adoptium.net."
+    answer_explanation: |
+      java -version in cmd shows the installed JDK version. eG Manager needs JDK 11 or 17.
+      Download from https://adoptium.net (Eclipse Temurin — free, LTS-supported).
+      After install, JAVA_HOME environment variable must be set correctly.
+
+  - sequence: 5
+    title: "Check .NET Framework version (4.5 or higher)"
+    type: gui_wizard
+    points: 10
+    description: |
+      Some eG components require .NET Framework 4.5 or higher. Verify via
+      Registry Editor or PowerShell.
+    gui_action: open_powershell
+    expected_commands:
+      - (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full').Release
+      - Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP'
+    flag_condition: output_contains
+    flag_trigger: "379893|394254|394802|528040|Release"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use PowerShell to query the Registry for .NET version."
+      - tier: 2
+        cost: 20
+        text: "PowerShell: (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full').Release"
+      - tier: 3
+        cost: 30
+        text: "Release value ≥ 379893 = .NET 4.5. Value 528040 = .NET 4.8 (latest). Windows Server 2019 ships with 4.7.2+."
+    answer_explanation: |
+      Release registry value maps to .NET version:
+        379893 → 4.5.2  |  394254 → 4.6.1  |  394802 → 4.6.2  |  528040 → 4.8
+      Windows Server 2019 and 2022 ship with .NET Framework 4.7.2 or 4.8 pre-installed.
+
+  - sequence: 6
+    title: "Verify required ports are free (7076, 7077, 443)"
+    type: gui_wizard
+    points: 10
+    description: |
+      eG Manager uses ports 7076 (HTTP), 7077 (agent communication), and 443 (HTTPS).
+      Check whether these ports are already in use before running the installer.
+    gui_action: open_cmd
+    expected_commands:
+      - netstat -ano | findstr "7076 7077 443"
+      - netstat -ano
+    flag_condition: output_does_not_contain
+    flag_trigger: "7076.*LISTEN|7077.*LISTEN"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use netstat to check listening ports."
+      - tier: 2
+        cost: 20
+        text: "cmd: netstat -ano | findstr \"7076 7077\""
+      - tier: 3
+        cost: 30
+        text: "If nothing appears for ports 7076/7077, they are free. If LISTEN shows up, another service must be removed first."
+    answer_explanation: |
+      netstat -ano shows all listening ports with PIDs. If ports 7076 or 7077 appear
+      in LISTENING state, use Task Manager (Details tab) to find and stop the conflicting
+      process before running the eG installer.
+
+  - sequence: 7
+    title: "Confirm Windows Firewall exceptions needed"
+    type: gui_wizard
+    points: 15
+    description: |
+      After installation, Windows Firewall must allow inbound traffic on:
+        • 7076 (or 443 after SSL setup)
+        • 7077 (agent communication)
+      Open Windows Defender Firewall with Advanced Security and verify or add rules.
+    gui_action: open_firewall_advanced
+    flag_condition: gui_action_complete
+    flag_trigger: "rule_verified"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Open 'Windows Defender Firewall with Advanced Security' from Start."
+      - tier: 2
+        cost: 20
+        text: "Start → wf.msc → Inbound Rules → check for rules on ports 7076 and 7077."
+      - tier: 3
+        cost: 30
+        text: "wf.msc → Inbound Rules → New Rule → Port → TCP → 7076, 7077 → Allow the connection."
+    answer_explanation: |
+      Without firewall rules, agents cannot communicate with the Manager and the
+      eG console will be unreachable from the network. Adding inbound rules for
+      ports 7076 and 7077 is a mandatory post-install step.

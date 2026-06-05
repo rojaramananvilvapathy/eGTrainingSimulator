@@ -1,0 +1,163 @@
+# ============================================================
+#  eG Enterprise — Manager Web Console Navigation
+#  Phase 5 | Category: configuration | OS: both | Difficulty: easy
+# ============================================================
+id: config-eg-console-navigation
+title: "eG Manager — Web Console Navigation & Initial Setup"
+description: |
+  eG Manager runs a web-based console accessed at http://<host>:7076/eg.
+  This lab simulates the eG Manager console and walks you through the
+  critical initial configuration steps after a fresh installation.
+
+  The simulation replicates the actual eG Manager UI screens based on
+  real eG Enterprise screenshots. Navigate through the console, complete
+  the initial setup, and capture flags at each key step.
+os: both
+difficulty: easy
+category: configuration
+component_type: eG Manager
+phase: 5
+estimated_minutes: 30
+docker_image: eg-sim-linux-lab:latest
+points_total: 100
+
+tasks:
+  - sequence: 1
+    title: "Log in to the eG Manager console"
+    type: gui_wizard
+    points: 10
+    description: |
+      Access the eG Manager console and log in with the default credentials.
+        URL: http://localhost:7076/eg
+        Username: admin
+        Password: admin
+
+      ⚠ On first login you will be forced to change the password.
+      Set a strong password (min 8 chars, upper+lower+number+special).
+    gui_action: eg_console_login
+    flag_condition: gui_action_complete
+    flag_trigger: "login_success"
+    hints:
+      - tier: 1
+        cost: 5
+        text: "Navigate to http://localhost:7076/eg in a browser."
+      - tier: 2
+        cost: 10
+        text: "Default: admin / admin — you'll be prompted to change it immediately."
+      - tier: 3
+        cost: 20
+        text: "If the page doesn't load, the eG Manager service may not be running. Check: systemctl status egurkha"
+
+  - sequence: 2
+    title: "Navigate to Infrastructure → Managers and verify Manager registration"
+    type: gui_wizard
+    points: 15
+    description: |
+      After login, verify the eG Manager itself is registered and showing green status.
+      Path: Infrastructure → Managers → Manager List
+      The Manager should show Status: Active.
+    gui_action: eg_console_manager_status
+    flag_condition: gui_field_value
+    flag_field: Manager Status
+    flag_trigger: "Active|GREEN|Online"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Go to the Infrastructure menu in the top navigation bar."
+      - tier: 2
+        cost: 20
+        text: "Infrastructure → Managers → you should see one Manager entry with a green status icon."
+      - tier: 3
+        cost: 30
+        text: "If Status shows Red/Offline, the Manager service is not fully started yet — wait 60 seconds and refresh."
+
+  - sequence: 3
+    title: "Configure database connection settings"
+    type: gui_wizard
+    points: 20
+    description: |
+      Navigate to Admin → Database Settings and verify the DB connection parameters.
+      These must match your MS SQL Server configuration:
+        Host, Port (1433), DB Name, Username, Password
+      Test the connection and confirm it succeeds.
+    gui_action: eg_console_db_config
+    flag_condition: gui_field_value
+    flag_field: DB Connection Test
+    flag_trigger: "Success|Connected|OK"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Admin menu → Database Settings."
+      - tier: 2
+        cost: 20
+        text: "Admin → Database Settings → fill in MSSQL connection details → click Test Connection."
+      - tier: 3
+        cost: 30
+        text: "If test fails: check SQL Server is running, port 1433 is open, and the egdbuser has SELECT/INSERT/UPDATE/DELETE on the egdb database."
+
+  - sequence: 4
+    title: "Configure email notification settings"
+    type: gui_wizard
+    points: 15
+    description: |
+      eG Manager sends alert emails via SMTP. Configure the mail server settings.
+      Path: Admin → Notification → Email Settings
+      Enter your SMTP server, port, and test address.
+    gui_action: eg_console_email_config
+    flag_condition: gui_action_complete
+    flag_trigger: "email_configured"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Admin → Notification → Email Settings."
+      - tier: 2
+        cost: 20
+        text: "SMTP host, port (25 or 587), from address, and optional auth credentials."
+      - tier: 3
+        cost: 30
+        text: "Click 'Send Test Email' after configuring — a test email confirms SMTP connectivity."
+
+  - sequence: 5
+    title: "Register the first eG Agent"
+    type: gui_wizard
+    points: 20
+    description: |
+      Agents must be authorized before they appear in the monitoring console.
+      Path: Infrastructure → Agents → Pending Agents
+      Approve the pending agent from host 192.168.1.101.
+    gui_action: eg_console_agent_approve
+    flag_condition: gui_field_value
+    flag_field: Agent Status
+    flag_trigger: "Approved|Active|Authorized"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "New agents appear in Pending Agents until approved by an admin."
+      - tier: 2
+        cost: 20
+        text: "Infrastructure → Agents → Pending Agents → select the agent → Approve."
+      - tier: 3
+        cost: 30
+        text: "If no agents appear in Pending: verify the agent is running and configured with the correct Manager IP."
+
+  - sequence: 6
+    title: "Set the data retention policy"
+    type: gui_wizard
+    points: 20
+    description: |
+      Configure how long eG stores historical monitoring data.
+      Path: Admin → Data Management → Retention Policy
+      Recommended: 90 days raw data, 365 days aggregated.
+    gui_action: eg_console_retention
+    flag_condition: gui_action_complete
+    flag_trigger: "retention_saved"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Admin → Data Management → Retention Policy."
+      - tier: 2
+        cost: 20
+        text: "Raw data: 90 days. Aggregated (hourly/daily): 365 days. Adjust based on disk space."
+      - tier: 3
+        cost: 30
+        text: "Shorter retention saves disk space but limits historical trend analysis. eG recommends minimum 30 days raw."

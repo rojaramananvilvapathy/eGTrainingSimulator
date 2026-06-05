@@ -1,0 +1,26 @@
+{
+  "name": "eg-sim-platform",
+  "version": "1.0.0",
+  "description": "eG Enterprise Simulation Learning Platform — TryHackMe-style gamified labs",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "scenario-engine"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend",
+    "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
+    "db:migrate": "npm run migrate --workspace=backend",
+    "db:seed": "npm run seed --workspace=backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

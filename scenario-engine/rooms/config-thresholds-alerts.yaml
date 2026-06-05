@@ -1,0 +1,175 @@
+# ============================================================
+#  eG Enterprise — Threshold & Alert Configuration
+#  Phase 5 | Category: configuration | OS: both | Difficulty: medium
+# ============================================================
+id: config-thresholds-alerts
+title: "Configure Thresholds and Alert Rules"
+description: |
+  eG Enterprise uses thresholds to define normal vs. alert-worthy conditions.
+  When a metric breaches a threshold, eG generates an alert and (optionally)
+  sends a notification.
+
+  This lab covers:
+    • Setting CPU, memory, and disk thresholds for a Windows Server
+    • Creating an alert rule with email notification
+    • Configuring alert escalation
+    • Testing alert generation with a simulated metric breach
+os: both
+difficulty: medium
+category: configuration
+component_type: eG Manager
+phase: 5
+estimated_minutes: 35
+docker_image: eg-sim-linux-lab:latest
+points_total: 120
+
+tasks:
+  - sequence: 1
+    title: "Set CPU utilisation threshold for Windows Server"
+    type: gui_wizard
+    points: 20
+    description: |
+      Set the CPU utilisation threshold for WIN-APP-01:
+        • Warning: > 75% for 5 consecutive minutes
+        • Critical: > 90% for 3 consecutive minutes
+
+      Path: Thresholds → Component Thresholds → Select WIN-APP-01 → CPU
+    gui_action: eg_threshold_cpu
+    flag_condition: gui_field_value
+    flag_field: CPU Threshold Saved
+    flag_trigger: "Saved|Applied|Success|threshold.*set"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Thresholds menu → Component Thresholds → select the component."
+      - tier: 2
+        cost: 20
+        text: "Set Warning at 75% and Critical at 90%. The 'consecutive cycles' setting prevents alert storms on brief spikes."
+      - tier: 3
+        cost: 30
+        text: "Consecutive cycles × polling interval = time before alert fires. 5 cycles × 5min polling = 25 min before warning alert."
+    answer_explanation: |
+      Consecutive cycles prevent alert flapping. A 5-cycle warning threshold means the CPU must exceed
+      75% for 5 consecutive polls (25 minutes at 5-minute polling) before an alert fires.
+      This avoids noise from brief load spikes during cron jobs or backups.
+
+  - sequence: 2
+    title: "Set memory and disk thresholds"
+    type: gui_wizard
+    points: 20
+    description: |
+      Set thresholds for WIN-APP-01 memory and disk:
+
+      Memory:
+        • Warning: > 80% used
+        • Critical: > 90% used
+
+      Disk (C:\\):
+        • Warning: < 20% free
+        • Critical: < 10% free
+    gui_action: eg_threshold_memory_disk
+    flag_condition: gui_action_complete
+    flag_trigger: "thresholds_saved"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Apply memory and disk thresholds the same way as CPU."
+      - tier: 2
+        cost: 20
+        text: "Disk thresholds are typically set as '% free' rather than '% used' — eG shows both options."
+      - tier: 3
+        cost: 30
+        text: "For disk: warning at 20% free, critical at 10% free gives time to act before the disk fills completely."
+    answer_explanation: |
+      Memory thresholds should account for expected base usage. On a busy app server,
+      80% warning might fire constantly — adjust based on the server's normal baseline.
+      Disk thresholds on % free are more reliable than % used because free space is what matters.
+
+  - sequence: 3
+    title: "Create an email alert rule"
+    type: gui_wizard
+    points: 30
+    description: |
+      Create an alert rule that sends email on Critical alerts from WIN-APP-01.
+      Path: Alerts → Alert Rules → New Rule
+
+      Settings:
+        • Rule Name: WIN-APP-01 Critical Alerts
+        • Trigger: Severity = Critical
+        • Component: WIN-APP-01
+        • Action: Send Email to admin@company.com
+        • Repeat: Every 30 minutes while alert is active
+    gui_action: eg_alert_rule_create
+    flag_condition: gui_field_value
+    flag_field: Alert Rule Status
+    flag_trigger: "Created|Saved|Active|Enabled"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Alerts → Alert Rules → New Rule."
+      - tier: 2
+        cost: 20
+        text: "Set trigger to Severity=Critical. Scope to specific component to avoid alert noise."
+      - tier: 3
+        cost: 30
+        text: "Repeat interval prevents alert fatigue — 30-minute repeat means the team gets reminded every 30 min while the issue persists."
+    answer_explanation: |
+      Alert rules in eG define WHAT triggers a notification and WHO receives it.
+      Scope rules tightly to avoid alert fatigue. Too many alerts → team starts ignoring them.
+      Best practice: Critical → immediate email + SMS. Warning → daily digest.
+
+  - sequence: 4
+    title: "Configure alert escalation policy"
+    type: gui_wizard
+    points: 20
+    description: |
+      Create an escalation policy: if a Critical alert is not acknowledged
+      within 15 minutes, escalate to escalation-team@company.com.
+      Path: Alerts → Escalation → New Policy
+    gui_action: eg_alert_escalation
+    flag_condition: gui_action_complete
+    flag_trigger: "escalation_saved"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Alerts → Escalation → New Policy."
+      - tier: 2
+        cost: 20
+        text: "Set escalation time to 15 minutes. Attach to the alert rule created in the previous task."
+      - tier: 3
+        cost: 30
+        text: "Escalation only triggers if the alert is not acknowledged. Train the team to acknowledge alerts in eG to prevent unnecessary escalation."
+    answer_explanation: |
+      Escalation policies ensure critical issues don't go unnoticed if the primary on-call misses the alert.
+      15-minute escalation is common for production systems. Longer for lower-priority environments.
+
+  - sequence: 5
+    title: "Simulate a threshold breach and verify alert fires"
+    type: terminal
+    points: 30
+    description: |
+      Trigger an artificial CPU spike on the monitored host to test the alert pipeline.
+      Use the stress tool to generate 100% CPU for 30 seconds.
+      Then check the eG Alerts panel to confirm a Warning or Critical alert was generated.
+
+      (In this simulation, the alert is injected automatically after the stress command.)
+    expected_commands:
+      - stress --cpu 4 --timeout 30
+      - stress-ng --cpu 4 --timeout 30s
+      - yes > /dev/null &
+    flag_condition: output_contains
+    flag_trigger: "stress|yes|cpu|load"
+    hints:
+      - tier: 1
+        cost: 10
+        text: "Use the 'stress' or 'stress-ng' tool to spike CPU."
+      - tier: 2
+        cost: 20
+        text: "stress --cpu 4 --timeout 30 — uses 4 CPU threads for 30 seconds."
+      - tier: 3
+        cost: 30
+        text: "After the spike: check eG console → Alerts → Active Alerts. The CPU alert should appear within 1-2 polling cycles."
+    answer_explanation: |
+      stress --cpu 4 --timeout 30 saturates 4 CPU cores for 30 seconds.
+      In a real environment, eG would detect this within one polling cycle and fire the threshold alert.
+      The alert then triggers the email rule configured in Task 3.
